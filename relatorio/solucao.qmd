@@ -1,0 +1,101 @@
+---
+title: "Lista de Exercícios 4"
+subtitle: "Desafio de Velocidade"
+author:
+  - "Carolina Musso"
+  - "Pedro Henrique Lima de Menezes"
+format:
+  html:
+    toc: true
+    self-contained: true
+knitr:
+  opts_chunk:
+    echo: true
+    warning: false
+editor: visual
+---
+
+## Links
+
+-   [A Future for R: A Comprehensive Overview](https://cran.r-project.org/web/packages/future/vignettes/future-1-overview.html)
+
+-   [R Interface with Google Compute Engine](https://cloudyr.github.io/googleComputeEngineR/)
+
+## Introdução
+
+Simulação computacional (<https://en.wikipedia.org/wiki/Monte_Carlo_method>) é uma poderosa ferramenta amplamente adotada em estudos de sistemas complexos. Aqui, para fins meramente didáticos, simularemos os resultados dos jogos da Copa do Mundo Fifa 2022, sediada no Catar, para responder questões de possível interesse prático.
+
+Consideraremos um modelo probabilistico notavelmente rudimentar e de baixa precisão. Especificamente, assuma que o resultado do jogo entre os times $i$ e $j$, com $i \neq j$, segue a distribuição Poisson bivariada definida a seguir $$
+\begin{align*}
+(X_i, X_j) & \sim \text{Poisson}(\lambda_{ij}, \lambda_{ji}), \quad \text{com} \\
+P(X_i = x_i, X_j = x_j) & = P(X_i = x_i) \; P(X_j = x_j) \\
+& = \frac{\lambda_{ij} ^ {x_i}}{x_i!} \exp(-\lambda_{ij}) \; \frac{\lambda_{ji} ^ {x_j!}}{x_j } \exp(-\lambda_{ji}),
+\end{align*}
+$$
+
+onde $X_i$ e $X_j$ representam o número de gols marcados pelas seleções $i$ e $j$, respectivamente, $P(X_i, X_j)$ denota a densidade conjunta do vetor $(X_i, X_j)$ e $\lambda_{ij}$ e $\lambda_{ji}$ indicam, respectivamente, as médias (esperanças matemáticas) de $X_i$ e $X_j$. Considere ainda que $\lambda_{ij}$ é calculado, deterministicamente, como a média entre $GF_i$ e $GS_j$, onde $GF_i$ e $GS_j$ representam, respectivamente, a média de gols feitos pelo time $i$ nos últimos 15 jogos e a média de gols sofridos pelo time $j$ nos últimos 15 jogos.
+
+As estatísticas dos times classificados para o torneio estão disponíveis em <https://footystats.org/world-cup> e na pasta da tarefa no Teams. A tabela de jogos e o regulamento da Copa estão disponíveis em <https://ge.globo.com/futebol/copa-do-mundo/2022/>.
+
+```{r}
+if (!require("pacman")) install.packages("pacman"); library(pacman)
+```
+
+## Questão 1: Simulando a Copa do mundo
+
+Para responder os itens a seguir, use os conhecimentos adquiridos no curso para acelerar o máximo possível os cálculos. Uma lista não exaustiva de opções inclui:
+
+1.  Usar uma lógica que evite realizar cálculos desnecessários;
+
+2.  Investigar os gargalos do código (*profiling*);
+
+3.  Criar parte do código em `C++` usando o pacote `Rcpp`;
+
+4.  Executar as operações em paralelo usando um cluster (com múltiplus *cores*) na nuvem.
+
+**a)** Sob o modelo assumido, qual é a probabilidade do Brasil vencer na estreia por 5x0? Compare o resultado exato com uma aproximação de Monte Carlo baseada em uma amostra de tamanho 1 milhão. Agora, compare com as probabilidades (1/Odds) estimadas pelas casas de aposta (<https://www.bettingodds.com/football/world-cup/brazil-vs-serbia>). O modelo adotado parece ser compatível com os usados pelo "mercado"?
+
+------------------------------------------------------------------------
+
+**Solução:**
+
+```{r}
+p_load(tidyverse, readxl)
+selecoes <- read_excel("../Estatisticas_times.xlsx")
+```
+
+O jogo de estreia do Brasil na Copa de 2022 será contra a Sérvia. Em seus últimos 15 jogos, a seleção brasileira marcou 31 gols e tomou 5; já a Sérvia, marcou 28 e sofreu 13.
+
+```{r}
+selecoes %>%
+  filter(PAIS %in% c("Brazil", "Serbia"))
+```
+
+No modelo Poisson bivariado descrito, o parâmetro $\lambda_{ij}$ modelo o número esperado de gols da seleção $i$ contra a seleção $j$. Sendo esse parâmetro estimado com base na média entre taxa de gols marcados pela seleção $i$ e a taxa de gols sofridos pela seleção $j$, temos como estimativas para $\lambda_{\text{BRA}, \text{SER}}$ e $\lambda_{\text{SER}, \text{BRA}}$:
+
+```{r}
+(l.BRA.SER <- (31/15 + 13/15)/2)
+(l.SER.BRA <- (28/15 + 5/15)/2)
+```
+
+Assim, a probabilidade estimada do placar 5x0 na estreia do Brasil na Copa, $P(X_{\text{BRA}} = 5, X_{\text{SER}} = 0)$, é dada por
+
+```{r}
+dpois(5, l.BRA.SER)*dpois(0, l.SER.BRA)
+```
+
+Ou seja, esse placar é esperado ocorrer em aproximadamente 4342 das um milhão simulações.
+
+**b)** Qual é o jogo mais decisivo do Brasil na fase de grupos? Isso é, aquele que, se vencido, leva à maior probabilidade de classificação da seleção para a segunda fase. Responda simulando os resultados do grupo do Brasil.
+
+**Observação**: Esse tipo de análise é usado para definir questões comercialmente estratégicas como o calendário de competições, preço de comercialização do produto, entre outras.
+
+**c)** Qual é a probabilidade do Brasil ser campeão, em uma final contra a Argentina, tendo se classificado em primeiro do grupo? Para responder ao item, gere 100 milhões de amostra de Monte Carlo usando um cluster na nuvem!
+
+**Atenção**: Nas fases eliminatórias, em caso de empate, sorteie o classificado considerando probabilidade de 50% para cada time (como dizem - equivocadamente -, *penalty* é loteria).
+
+## Considerações finais
+
+Aqui consideramos um exemplo lúdico, mas o mesmo procedimento é útil para resolver problemas em genética, engenharia, finanças, energia, etc.
+
+Há uma vasta literatura na área de modelagem preditiva de resultados esportivos (via modelos probabilísticos e de aprendizagem de máquina - algoritmicos). Entretanto, por não ser esse o foco do curso, optamos por não modelar o número esperado de gols marcados por equipe. Com base em resultados passados, seria possível ajustar modelos bem mais sofisticados, que levassem em consideração, por exemplo, contra quem os últimos resultados foram alcançados. Decidimos também modelar a incerteza usando distribuições Poisson independentes. Essa é obviamente uma suposição equivocada. Alternativas mais flexiveis podem ser adotadas para melhorar a capacidade preditiva do processo.
